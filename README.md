@@ -56,6 +56,12 @@
 - Chrome 限制每秒最多擷取 2 次，連續快速點擊時會排隊依序截圖。
 - **團隊版的角色與審核為「本機工作流程模式」**：可以完整走完送審→核准→發布→版本比對的流程，但不是跨裝置的權限控管。真正多人協作需要後端（帳號、同步、稽核紀錄），目前以「匯出分享套件 / 匯入」完成交接。
 
+## 上架 Chrome 線上應用程式商店
+
+- 上架欄位（說明、權限理由、資料揭露、審查測試說明）：[store/listing.md](store/listing.md)
+- 隱私權政策（部署到 `https://chichinliu.com/sop-snap/privacy`）：[store/privacy-policy.html](store/privacy-policy.html)
+- 打包上傳檔：`./scripts/package.sh` → `dist/sop-snap-<版本>.zip`
+
 ## 檔案結構
 
 ```
