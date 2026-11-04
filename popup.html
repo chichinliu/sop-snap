@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>SOP Snap</title>
+<link rel="stylesheet" href="popup.css"></head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt=""><div><b>SOP Snap 圖文手冊</b><small id="planLabel"></small></div>
+  </header>
+  <section class="draft">
+    <label for="draftSel">目前手冊</label>
+    <div class="row"><select id="draftSel"></select><button id="newDraft" title="新增手冊">＋</button></div>
+    <div id="draftInfo" class="muted"></div>
+  </section>
+  <div id="retake" class="notice" hidden></div>
+  <section class="grid">
+    <button class="cap" data-mode="visible"><span>▭</span>可視畫面<kbd>Alt+Shift+1</kbd></button>
+    <button class="cap" data-mode="region"><span>⬚</span>手動框選<kbd>Alt+Shift+2</kbd></button>
+    <button class="cap" data-mode="full"><span>⇣</span>全頁捲動<kbd>Alt+Shift+3</kbd></button>
+  </section>
+  <button id="rec" class="rec">● 開始點擊錄製</button>
+  <p class="muted small">錄製中每次滑鼠點擊都會自動截圖並框出點擊位置。</p>
+  <div id="msg" class="msg" hidden></div>
+  <footer>
+    <button id="openEditor" class="primary">開啟編輯器</button>
+    <a href="#" id="shortcuts">自訂快捷鍵</a>
+  </footer>
+  <div class="brand"><a href="https://chichinliu.com" target="_blank">chichinliu.com</a></div>
+  <script type="module" src="popup.js"></script>
+</body></html>

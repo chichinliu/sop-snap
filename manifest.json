@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "SOP Snap 圖文手冊",
+  "short_name": "SOP Snap",
+  "version": "1.0.0",
+  "description": "把網頁操作變成圖文手冊：擷取畫面、標示重點、遮蔽機敏資料，匯出 HTML / PDF。by chichinliu.com",
+  "homepage_url": "https://chichinliu.com",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_title": "SOP Snap 圖文手冊",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "commands": {
+    "capture-visible": { "suggested_key": { "default": "Alt+Shift+1" }, "description": "擷取可視畫面" },
+    "capture-region": { "suggested_key": { "default": "Alt+Shift+2" }, "description": "手動框選擷取" },
+    "capture-full": { "suggested_key": { "default": "Alt+Shift+3" }, "description": "全頁捲動截圖" },
+    "toggle-recording": { "description": "開始／停止滑鼠點擊錄製" }
+  }
+}

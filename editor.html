@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SOP Snap 編輯器</title>
+<link rel="icon" href="icons/icon32.png">
+<link rel="stylesheet" href="editor.css"></head>
+<body>
+<header class="topbar">
+  <div class="brand"><img src="icons/icon32.png" alt=""><span>SOP Snap</span><small id="planBadge"></small></div>
+  <input id="title" class="title-input" placeholder="手冊名稱">
+  <span id="status" class="status"></span>
+  <div class="actions">
+    <span id="workflow"></span>
+    <button id="btnVersions" data-feature="versions">版本紀錄</button>
+    <button id="btnExport">匯出 HTML</button>
+    <button id="btnPrint">列印 / 另存 PDF</button>
+    <button id="btnSettings" title="設定">⚙</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="side-head">
+      <b id="libTitle">手冊</b>
+      <button id="btnNewDraft" data-feature="multiDraft" title="新增手冊">＋ 新增</button>
+    </div>
+    <div data-feature="library" class="lib-tools">
+      <input id="search" type="search" placeholder="搜尋標題或步驟…">
+      <select id="folderFilter"><option value="">全部資料夾</option></select>
+    </div>
+    <ul id="draftList" class="draft-list"></ul>
+    <div class="side-foot" data-feature="library">
+      <button id="btnImport">匯入手冊套件</button>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+    </div>
+  </aside>
+
+  <main>
+    <div id="welcome" class="welcome" hidden>
+      <h2>歡迎使用 SOP Snap 圖文手冊</h2>
+      <ol>
+        <li>在要說明的網頁上點工具列的 SOP Snap 圖示，選擇 <b>可視畫面 / 手動框選 / 全頁捲動</b> 截圖。</li>
+        <li>或按 <b>開始點擊錄製</b>，之後每一次點擊都會自動截圖並框出點擊位置。</li>
+        <li>回到這裡編輯步驟說明、加上紅框、遮蔽機敏資料，最後匯出 HTML 或列印成 PDF。</li>
+      </ol>
+      <p>快捷鍵：Alt+Shift+1 / 2 / 3（可在 <a href="#" class="open-shortcuts">chrome://extensions/shortcuts</a> 自訂）</p>
+      <button id="closeWelcome">知道了</button>
+    </div>
+
+    <div class="draft-meta">
+      <label data-feature="library">資料夾 <input id="folder" list="folderOptions" placeholder="未分類"><datalist id="folderOptions"></datalist></label>
+      <span id="meta" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="btnSharePkg" data-feature="library">匯出分享套件</button>
+      <button id="btnDeleteDraft" class="danger-text">刪除手冊</button>
+    </div>
+    <div id="readonlyBanner" class="banner" hidden></div>
+    <div id="restoredBanner" class="banner info" hidden></div>
+
+    <div id="steps"></div>
+    <div id="empty" class="empty" hidden>
+      <p>這份手冊還沒有步驟。</p>
+      <p class="muted">打開任一網頁，按工具列的 SOP Snap 圖示開始擷取，或先插入一個文字步驟。</p>
+    </div>
+    <div class="add-row"><button id="btnAddText">＋ 插入純文字步驟</button></div>
+  </main>
+</div>
+
+<footer class="footer">SOP Snap 圖文手冊 · 本機儲存，不上傳任何資料 · <a href="https://chichinliu.com" target="_blank">chichinliu.com</a></footer>
+
+<!-- 標註編輯器 -->
+<dialog id="annDlg" class="ann-dlg">
+  <div class="ann-bar">
+    <div class="tools">
+      <button data-tool="select" title="選取 / 移動 / 縮放">⬉ 選取</button>
+      <button data-tool="box" title="框定紅框">▢ 紅框</button>
+      <button data-tool="mask" title="遮蔽機敏資料">■ 遮蔽</button>
+      <button data-tool="text" data-feature="textAnnotation" title="文字標註">T 文字</button>
+    </div>
+    <div class="tools">
+      <button id="annDelete">刪除選取</button>
+      <button id="annRemoveAuto">移除自動焦點</button>
+      <button id="annUndo">↶ 復原</button>
+      <button id="annRedo">↷ 重做</button>
+      <button id="annReset">清除全部標註</button>
+    </div>
+    <div class="tools">
+      <button id="annCancel">取消</button>
+      <button id="annSave" class="primary">儲存</button>
+    </div>
+  </div>
+  <div class="ann-body">
+    <div class="ann-stage"><canvas id="annCanvas"></canvas></div>
+    <aside id="annProps" class="ann-props">
+      <p class="muted">選取一個標註以調整樣式。<br>遮蔽區塊在匯出時會直接覆蓋到圖片上，原始內容不會外流。</p>
+    </aside>
+  </div>
+</dialog>
+
+<!-- 版本紀錄 -->
+<dialog id="verDlg" class="wide-dlg">
+  <div class="dlg-head"><h3>版本控管</h3><button class="close" data-close>✕</button></div>
+  <div class="ver-compare">
+    比較 <select id="cmpA"></select> → <select id="cmpB"></select> <button id="btnCompare">比對差異</button>
+  </div>
+  <div id="verList"></div>
+  <div id="diffOut"></div>
+</dialog>
+
+<!-- 發布 / 送審 -->
+<dialog id="pubDlg" class="small-dlg">
+  <form method="dialog">
+    <h3 id="pubTitle">發布新版本</h3>
+    <label>變更摘要<textarea id="pubNote" rows="4" placeholder="例如：更新第 3 步的系統畫面、補充權限說明"></textarea></label>
+    <div class="dlg-actions"><button value="cancel">取消</button><button id="pubOk" value="ok" class="primary">確認</button></div>
+  </form>
+</dialog>
+
+<!-- 設定 -->
+<dialog id="setDlg" class="small-dlg">
+  <form method="dialog">
+    <h3>設定</h3>
+    <fieldset><legend>方案</legend>
+      <label class="radio"><input type="radio" name="plan" value="community"> 社群版 — 快速製作與分享手冊（保留一份手冊）</label>
+      <label class="radio"><input type="radio" name="plan" value="standard"> 標準版 — 多份草稿、文字標註、單步驟重新截圖</label>
+      <label class="radio"><input type="radio" name="plan" value="team"> 團隊版 — 手冊庫、角色權限、審核發布、版本控管</label>
+    </fieldset>
+    <label>你的名字（發布者／審核紀錄）<input id="setName" placeholder="例如：王小明"></label>
+    <label data-feature="roles">目前角色
+      <select id="setRole"><option value="admin">管理員（可核准發布）</option><option value="editor">編輯者（可編輯、送審）</option><option value="viewer">檢視者（唯讀）</option></select>
+    </label>
+    <label>匯出圖片格式
+      <select id="setFormat"><option value="png">PNG（文字最清晰）</option><option value="jpeg">JPEG（檔案較小）</option></select>
+    </label>
+    <p class="muted small">角色為本機工作流程模式，用來模擬團隊審核流程；跨裝置多人協作需搭配後端同步服務。</p>
+    <p class="muted small" id="storageInfo"></p>
+    <p class="small"><a href="#" class="open-shortcuts">自訂快捷鍵</a> · <a href="https://chichinliu.com" target="_blank">chichinliu.com</a></p>
+    <div class="dlg-actions"><button value="cancel">取消</button><button id="setOk" value="ok" class="primary">儲存</button></div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+<script type="module" src="editor.js"></script>
+</body></html>
