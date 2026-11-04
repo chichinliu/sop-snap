@@ -7,7 +7,7 @@
 ## 安裝（開發者模式）
 
 1. Chrome 網址列輸入 `chrome://extensions`，開啟右上角「開發人員模式」
-2. 點「載入未封裝項目」，選擇本資料夾 `extension/`
+2. 點「載入未封裝項目」，選擇本 repo 的根目錄（含 `manifest.json` 的資料夾）
 3. 把 SOP Snap 釘選到工具列；首次安裝會自動開啟編輯器與使用說明
 
 需要 Chrome 116 以上（Edge、Brave 等 Chromium 瀏覽器亦可）。
@@ -59,7 +59,7 @@
 ## 檔案結構
 
 ```
-extension/
+sop-snap/
 ├── manifest.json        MV3 設定、權限、快捷鍵
 ├── background.js        截圖引擎（可視／框選／全頁拼接）、點擊錄製、寫入手冊
 ├── recorder.js          注入頁面的點擊監聽器（產生「點擊『新增訂單』」等步驟標題）
