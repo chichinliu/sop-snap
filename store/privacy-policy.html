@@ -50,6 +50,7 @@
       <tr><td>你撰寫的手冊內容、標註、版本紀錄與設定（含你輸入的名字）</td><td>你編輯手冊時</td><td>保存手冊草稿、審核與版本紀錄</td></tr>
     </table>
     <p>點擊錄製只監聽<b>滑鼠點擊</b>，<b>不記錄鍵盤輸入內容</b>，也不讀取密碼欄位的值。你可隨時停止錄製；關閉分頁時錄製會自動結束。</p>
+    <p>為了讓多頁流程在換頁後不漏掉步驟，本擴充功能會在每個網頁載入一段很小的程式；在<b>未開啟錄製</b>的分頁上，它只會詢問「這個分頁是否正在錄製」，之後不監聽任何事件、不讀取任何網頁內容。</p>
 
     <h2>3. 資料儲存在哪裡</h2>
     <p>所有資料皆儲存在你瀏覽器的本機儲存空間（IndexedDB 與 <code>chrome.storage.local</code>），只有本擴充功能能讀取。<b>本擴充功能不包含任何會把資料傳送到外部伺服器的程式碼</b>，也不使用第三方分析、廣告或追蹤服務。</p>
@@ -96,7 +97,7 @@
     </div>
 
     <h2>1. Data the extension handles</h2>
-    <p>Only when you actively use it, and only on your device, the extension handles: screenshots of web pages you capture; the text label and position of the element you click while “click recording” is on (used to title the step and draw a highlight box); the page title and URL at capture time; and the manual content, annotations, version history and settings you create. Click recording listens to mouse clicks only; it does <b>not</b> record keystrokes or read password fields.</p>
+    <p>Only when you actively use it, and only on your device, the extension handles: screenshots of web pages you capture; the text label and position of the element you click while “click recording” is on (used to title the step and draw a highlight box); the page title and URL at capture time; and the manual content, annotations, version history and settings you create. Click recording listens to mouse clicks only; it does <b>not</b> record keystrokes or read password fields. A small script loads on each page so recording survives navigation; on tabs that are not recording it only checks whether recording is on and then stays idle, reading no page content.</p>
 
     <h2>2. Storage</h2>
     <p>All data is kept in your browser’s local storage (IndexedDB and <code>chrome.storage.local</code>). The extension contains no code that sends data to any external server and uses no third-party analytics, advertising or tracking.</p>

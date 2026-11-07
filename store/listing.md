@@ -167,7 +167,7 @@ Manuals contain many full-resolution screenshots (full-page captures can be seve
 
 **Host permission (<all_urls>)**
 ```
-Users document workflows on arbitrary websites and internal business systems that cannot be listed in advance. When click recording is on, the extension must re-inject its click listener after each page navigation (which activeTab alone does not allow) so that every step in a multi-page workflow is captured. Screenshots and element labels are processed locally only and never transmitted.
+Users document workflows on arbitrary websites and internal business systems that cannot be listed in advance. A small content script (recorder.js) is declared at document_start so that, when the user has turned on click recording for a tab, the click listener is ready immediately after each page navigation and no step of a multi-page workflow is lost. On tabs that are not recording, the script only asks the background whether recording is on and then stays idle: it attaches no listeners and reads no page content. Screenshots and element labels are processed locally only and never transmitted.
 ```
 
 ### 遠端程式碼（Remote code）
