@@ -102,7 +102,7 @@ del{background:#fee2e2;text-decoration:line-through}ins{background:#dcfce7;text-
 .tools{display:flex;gap:6px;flex-wrap:wrap}
 .tools button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
 .ann-body{flex:1;display:flex;min-height:0}
-.ann-stage{flex:1;overflow:auto;background:#cbd5e1;padding:16px}
+.ann-stage{user-select:none;-webkit-user-select:none;flex:1;overflow:auto;background:#cbd5e1;padding:16px}
 .ann-stage canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
 .ann-props{width:260px;border-left:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto}
 .ann-props label{display:flex;flex-direction:column;gap:4px;font-size:13px}
@@ -111,3 +111,4 @@ del{background:#fee2e2;text-decoration:line-through}ins{background:#dcfce7;text-
 
 .toast{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 16px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:10}
 .toast.err{background:#b91c1c}
+.needs-capture{display:flex;align-items:center;gap:12px;background:#fff7ed;border:1px dashed #f59e0b;border-radius:10px;padding:12px 14px;color:#9a3412}

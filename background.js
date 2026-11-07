@@ -45,14 +45,16 @@ async function doAddCapture({ blob, width, height, title, description = '', anno
   const { retakeTarget } = await chrome.storage.local.get('retakeTarget');
   const settings = await M.getSettings();
 
-  if (retakeTarget && M.can(settings, 'retake')) {
+  // 補上缺漏的截圖屬於基本功能，各方案皆可；替換既有截圖才是標準版功能
+  if (retakeTarget && (M.can(settings, 'retake') || retakeTarget.fill)) {
     await chrome.storage.local.remove('retakeTarget');
     try {
       // 保留標題、說明與順序，只換截圖；舊標註座標已不適用，改用新的自動焦點。
       await M.updateDraft(retakeTarget.draftId, (d) => {
         const s = d.steps.find((x) => x.id === retakeTarget.stepId);
         if (!s) throw new Error('要重新截圖的步驟已不存在');
-        s.imageId = imageId; s.type = 'image'; s.annotations = annotations; s.source = source;
+        s.imageId = imageId; s.type = 'image'; s.annotations = annotations; s.source = source; s.needsCapture = false;
+        if (s.description && s.description.startsWith('⚠ 點擊後頁面立即跳轉')) s.description = '';
       });
       notify(retakeTarget.draftId, '已替換步驟截圖');
       return { replaced: true };
@@ -157,15 +159,44 @@ async function captureRegionStep(tab) {
 }
 
 // 全頁捲動截圖：逐屏捲動擷取後拼接；第 2 屏起隱藏 fixed / sticky 元素避免重複出現。
+// 很多 SPA 後台把內容放在「內層捲動容器」，文件本身不會捲動。
+// 文件不可捲動時，找出畫面上面積最大、可垂直捲動的元素，改捲動它。
 function pageMetrics() {
   const se = document.scrollingElement || document.documentElement;
-  return { sh: Math.max(se.scrollHeight, document.body ? document.body.scrollHeight : 0), vh: window.innerHeight, vw: window.innerWidth, sx: window.scrollX, sy: window.scrollY };
+  const vh = window.innerHeight, vw = window.innerWidth;
+  const sh = Math.max(se.scrollHeight, document.body ? document.body.scrollHeight : 0);
+  const out = { sh, vh, vw, sx: window.scrollX, sy: window.scrollY, scroller: null };
+  if (sh > vh + 4) return out;
+  let best = null, bestArea = 0;
+  for (const el of document.querySelectorAll('body *')) {
+    if (el.scrollHeight <= el.clientHeight + 20 || el.clientHeight < 100) continue;
+    const oy = getComputedStyle(el).overflowY;
+    if (oy !== 'auto' && oy !== 'scroll' && oy !== 'overlay') continue;
+    const r = el.getBoundingClientRect();
+    const w = Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0));
+    const h = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0));
+    if (w * h > bestArea) { best = el; bestArea = w * h; }
+  }
+  if (!best || bestArea < vw * vh * 0.2) return out;
+  document.querySelectorAll('[data-sopsnap-scroller]').forEach((n) => n.removeAttribute('data-sopsnap-scroller'));
+  best.setAttribute('data-sopsnap-scroller', '');
+  const r = best.getBoundingClientRect();
+  // clientTop/clientLeft 扣掉邊框，clientWidth/clientHeight 不含捲軸
+  out.scroller = {
+    left: r.left + best.clientLeft, top: r.top + best.clientTop,
+    w: best.clientWidth, h: best.clientHeight, sh: best.scrollHeight, st: best.scrollTop,
+  };
+  return out;
 }
-function pageScrollTo(y) {
+function pageScrollTo(y, inner) {
   return new Promise((resolve) => {
-    window.scrollTo({ top: y, left: 0, behavior: 'instant' });
-    setTimeout(() => resolve(window.scrollY), 250); // 給 lazy-load 與重繪一點時間
+    const el = inner ? document.querySelector('[data-sopsnap-scroller]') : null;
+    if (el) el.scrollTop = y; else window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+    setTimeout(() => resolve(el ? el.scrollTop : window.scrollY), 250); // 給 lazy-load 與重繪一點時間
   });
+}
+function pageCleanupScroller() {
+  document.querySelectorAll('[data-sopsnap-scroller]').forEach((n) => n.removeAttribute('data-sopsnap-scroller'));
 }
 function pageHideFixed(hide) {
   if (hide) {
@@ -188,36 +219,59 @@ function pageHideFixed(hide) {
 
 async function captureFullStep(tab) {
   const m = await exec(tab.id, pageMetrics);
+  const sc = m.scroller;                       // 內層捲動模式
+  const viewH = sc ? sc.h : m.vh;
+  const totalCss = sc ? sc.sh : m.sh;
   const frames = [];
   let truncated = false;
   try {
     let y = 0;
     for (let i = 0; ; i++) {
-      const actualY = await exec(tab.id, pageScrollTo, [y]);
+      const actualY = await exec(tab.id, pageScrollTo, [y, !!sc]);
       if (i === 1) await exec(tab.id, pageHideFixed, [true]);
       const bmp = await dataURLToBitmap(await captureVisible(tab.windowId));
       frames.push({ y: actualY, bmp });
       const scale = bmp.width / m.vw;
-      if (actualY + m.vh >= m.sh - 1) break;
+      if (actualY + viewH >= totalCss - 1) break;
       if ((actualY + m.vh) * scale >= MAX_FULLPAGE_PX) { truncated = true; break; }
-      if (i > 0 && actualY <= frames[i - 1].y) break; // 頁面無法再捲動
-      y = actualY + m.vh;
+      if (i > 0 && actualY <= frames[i - 1].y) break; // 無法再捲動
+      y = actualY + viewH;
     }
   } finally {
     await exec(tab.id, pageHideFixed, [false]).catch(() => {});
-    await exec(tab.id, pageScrollTo, [m.sy]).catch(() => {});
+    await exec(tab.id, pageScrollTo, [sc ? sc.st : m.sy, !!sc]).catch(() => {});
+    if (sc) await exec(tab.id, pageCleanupScroller).catch(() => {});
   }
   const scale = frames[0].bmp.width / m.vw;
   const last = frames[frames.length - 1];
-  const totalH = Math.min(Math.round(last.y * scale + last.bmp.height), MAX_FULLPAGE_PX);
-  const c = new OffscreenCanvas(frames[0].bmp.width, totalH);
-  const ctx = c.getContext('2d');
-  for (const f of frames) ctx.drawImage(f.bmp, 0, Math.round(f.y * scale));
+  let c;
+  if (!sc) {
+    const totalH = Math.min(Math.round(last.y * scale + last.bmp.height), MAX_FULLPAGE_PX);
+    c = new OffscreenCanvas(frames[0].bmp.width, totalH);
+    const ctx = c.getContext('2d');
+    for (const f of frames) ctx.drawImage(f.bmp, 0, Math.round(f.y * scale));
+  } else {
+    // 第一屏完整保留（含頁首、側欄）；之後每屏只裁切容器區塊，往下延伸拼接；
+    // 容器下方若還有內容（例如頁尾），取最後一屏接在最底部。
+    const S = (v) => Math.round(v * scale);
+    const box = { x: S(sc.left), y: S(sc.top), w: S(sc.w), h: S(sc.h) };
+    const extra = S(last.y);
+    const below = Math.max(0, last.bmp.height - (box.y + box.h));
+    const totalH = Math.min(box.y + extra + box.h + below, MAX_FULLPAGE_PX);
+    c = new OffscreenCanvas(frames[0].bmp.width, totalH);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(frames[0].bmp, 0, 0, frames[0].bmp.width, box.y + box.h, 0, 0, frames[0].bmp.width, box.y + box.h);
+    for (const f of frames.slice(1)) {
+      ctx.drawImage(f.bmp, box.x, box.y, box.w, box.h, box.x, box.y + S(f.y), box.w, box.h);
+    }
+    if (below) ctx.drawImage(last.bmp, 0, box.y + box.h, last.bmp.width, below, 0, box.y + extra + box.h, last.bmp.width, below);
+  }
   return addCapture({
     blob: await canvasToBlob(c), width: c.width, height: c.height,
     title: `全頁截圖：${tab.title || ''}`.trim(),
     description: truncated ? '（頁面過長，已截取前段）' : '',
-    source: { url: tab.url, mode: 'full' },
+    source: { url: tab.url, mode: sc ? 'full-inner' : 'full' },
   });
 }
 
@@ -233,39 +287,88 @@ async function setRecording(tabId, on) {
   await chrome.storage.session.set({ recording: r });
   await chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
   await chrome.action.setBadgeText({ text: r.length ? 'REC' : '' });
-  if (on) await injectRecorder(tabId);
-  else await chrome.tabs.sendMessage(tabId, { type: 'recorder-stop' }).catch(() => {});
-}
-async function injectRecorder(tabId) {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ['recorder.js'] });
+  if (on) {
+    // 錄製開始前就已開啟的分頁沒有 content script，補注入一次（已載入時為 no-op）
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['recorder.js'] }).catch(() => {});
+    await chrome.tabs.sendMessage(tabId, { type: 'recorder-start' }).catch(() => {});
+  } else await chrome.tabs.sendMessage(tabId, { type: 'recorder-stop' }).catch(() => {});
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, info) => {
-  if (info.status !== 'complete') return;
-  if ((await recordingTabs()).includes(tabId)) injectRecorder(tabId).catch(() => {});
-});
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  baselines.delete(tabId);
   const r = await recordingTabs();
   if (r.includes(tabId)) await setRecording(tabId, false);
 });
 
+// 點擊後頁面若立刻跳轉，captureVisibleTab 會失敗（image readback failed）。
+// 因此每次頁面載入完成時先拍一張「基準畫面」，擷取失敗時用它補位；連基準畫面都沒有時，
+// 仍保留步驟並提示補截圖，絕不默默漏掉步驟。
+const baselines = new Map(); // tabId -> { url, scrollY, dataURL }
+
+async function refreshBaseline(tab, scrollY) {
+  try {
+    const t = await chrome.tabs.get(tab.id);
+    if (!t.active || t.url !== tab.url) return;
+    const dataURL = await captureVisible(t.windowId);
+    const now = await chrome.tabs.get(tab.id);
+    if (now.url === tab.url) baselines.set(tab.id, { url: tab.url, scrollY, dataURL });
+  } catch (err) { /* 基準畫面只是備援，失敗不影響主流程 */ }
+}
+
+function addPlaceholderStep({ title, description, source }) {
+  const p = writeChain.then(async () => {
+    const draft = await M.ensureCurrentDraft();
+    const step = M.newStep({ title, description, source });
+    step.needsCapture = true;
+    await M.updateDraft(draft.id, (d) => { d.steps.push(step); });
+    chrome.runtime.sendMessage({ type: 'draft-updated', draftId: draft.id, message: '有一步未能截圖，已標示待補' }).catch(() => {});
+    flashBadge('!', '#d97706');
+    return { added: true, placeholder: true, stepId: step.id };
+  });
+  writeChain = p.catch(() => {});
+  return p;
+}
+
 async function onRecordedClick(msg, sender) {
   const tab = sender.tab;
-  const dataURL = await captureVisible(tab.windowId);
+  let dataURL = null, fromBaseline = false, shotScrollY = msg.scrollY || 0;
+  try {
+    dataURL = await captureVisible(tab.windowId);
+  } catch (err) {
+    console.warn('[SOP Snap] click capture failed, trying fallback:', err.message);
+    const now = await chrome.tabs.get(tab.id).catch(() => null);
+    if (now && now.url === tab.url && now.status === 'complete') {
+      try { dataURL = await captureVisible(tab.windowId); } catch { /* fall through */ }
+    }
+    const b = baselines.get(tab.id);
+    if (!dataURL && b && b.url === tab.url) { dataURL = b.dataURL; fromBaseline = true; shotScrollY = b.scrollY; }
+  }
+  if (!dataURL) {
+    return addPlaceholderStep({
+      title: msg.label,
+      description: '⚠ 點擊後頁面立即跳轉，這一步未能截圖。請按「補上截圖」，回到該頁面重新擷取。',
+      source: { url: tab.url, mode: 'click' },
+    });
+  }
   const bmp = await dataURLToBitmap(dataURL);
   const scale = bmp.width / msg.vw;
   const c = new OffscreenCanvas(bmp.width, bmp.height);
   c.getContext('2d').drawImage(bmp, 0, 0);
   const pad = 6 * scale;
   const r = msg.rect;
-  const annotations = r && r.w > 0 && r.h > 0 ? [{
+  // 基準畫面若與點擊時的捲動位置不同，換算元素在基準畫面中的位置
+  const dy = (msg.scrollY || 0) - shotScrollY;
+  const y = (r ? r.y + dy : 0) * scale;
+  const annotations = r && r.w > 0 && r.h > 0 && y + r.h * scale > 0 && y < bmp.height ? [{
     id: M.uid('a_'), kind: 'box', auto: true,
-    x: Math.max(0, r.x * scale - pad), y: Math.max(0, r.y * scale - pad),
+    x: Math.max(0, r.x * scale - pad), y: Math.max(0, y - pad),
     w: r.w * scale + pad * 2, h: r.h * scale + pad * 2,
   }] : [];
   return addCapture({
     blob: await canvasToBlob(c), width: bmp.width, height: bmp.height,
-    title: msg.label, annotations, source: { url: tab.url, mode: 'click' },
+    title: msg.label, annotations,
+    description: fromBaseline ? '（點擊後頁面立即跳轉，截圖取自進入此頁時的畫面）' : '',
+    source: { url: tab.url, mode: 'click' },
   });
 }
 
@@ -307,10 +410,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     'recorded-click': () => onRecordedClick(msg, sender),
     'set-recording': async () => { await setRecording(msg.tabId, msg.on); return { on: msg.on }; },
     'get-recording': async () => ({ tabs: await recordingTabs() }),
+    'recorder-hello': async () => ({ recording: !!sender.tab && (await recordingTabs()).includes(sender.tab.id) }),
+    'recorder-baseline': async () => {
+      if (sender.tab && (await recordingTabs()).includes(sender.tab.id)) refreshBaseline(sender.tab, msg.scrollY || 0);
+      return {};
+    },
   };
   const h = handlers[msg && msg.type];
   if (!h) return false;
-  h().then((r) => sendResponse({ ok: true, ...(r || {}) }), (err) => sendResponse({ ok: false, error: String(err.message || err) }));
+  h().then((r) => sendResponse({ ok: true, ...(r || {}) }), (err) => {
+    console.warn('[SOP Snap]', msg.type, err);
+    if (msg.type === 'recorded-click') flashBadge('ERR', '#dc2626');
+    sendResponse({ ok: false, error: String(err.message || err) });
+  });
   return true;
 });
 

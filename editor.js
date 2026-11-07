@@ -182,6 +182,7 @@ function renderSteps() {
     seen.add(s.id);
     let c = cards.get(s.id);
     const sig = stepSig(s, i, ro);
+    if (c && c.hasImage !== !!s.imageId) { c.root.remove(); c.insert.remove(); cards.delete(s.id); c = null; } // 補上截圖後改建卡片
     if (!c) {
       c = buildCard(s);
       cards.set(s.id, c);
@@ -193,7 +194,7 @@ function renderSteps() {
     t.disabled = ds.disabled = ro;
     c.root.querySelector('.num').textContent = i + 1;
     c.root.classList.toggle('retake-pending', !!(state.retake && state.retake.stepId === s.id));
-    for (const b of c.root.querySelectorAll('.ops button, .shot-actions button')) b.disabled = ro;
+    for (const b of c.root.querySelectorAll('.ops button, .shot-actions button, .needs-capture button')) b.disabled = ro;
     const retakeBtn = c.root.querySelector('.btn-retake');
     if (retakeBtn) retakeBtn.hidden = !multi;
     c.root.querySelector('.btn-up').disabled = ro || i === 0;
@@ -234,6 +235,9 @@ function buildCard(s) {
       el('input', { class: 'st-title', placeholder: s.imageId ? '操作說明（例如：點擊「新增」按鈕）' : '段落標題', oninput: (e) => saveTitle(e.target.value) }),
       el('textarea', { class: 'st-desc', rows: 2, placeholder: '補充說明（選填）', oninput: (e) => saveDesc(e.target.value) }),
       shot,
+      !s.imageId && s.needsCapture ? el('div', { class: 'needs-capture' },
+        el('span', { text: '這一步還沒有截圖' }),
+        el('button', { class: 'primary', text: '補上截圖', onclick: () => startRetake(id) })) : null,
       s.source && s.source.url ? el('div', { class: 'src', text: s.source.url, title: s.source.url }) : null),
     el('div', { class: 'ops' },
       el('button', { class: 'btn-up', title: '上移', text: '↑', onclick: () => moveStep(id, -1) }),
@@ -250,7 +254,7 @@ function buildCard(s) {
   });
 
   const insert = el('div', { class: 'insert' }, el('button', { text: '＋ 在此插入文字步驟', onclick: () => addTextStep(id) }));
-  return { root, insert, sig: null };
+  return { root, insert, sig: null, hasImage: !!s.imageId };
 }
 function clearDrop() { document.querySelectorAll('.drop-before').forEach((n) => n.classList.remove('drop-before')); }
 
@@ -292,7 +296,7 @@ function addTextStep(afterId) {
 async function startRetake(id) {
   const s = state.draft.steps.find((x) => x.id === id);
   const idx = state.draft.steps.indexOf(s) + 1;
-  const target = { draftId: state.draft.id, stepId: id, label: `步驟 ${idx}：${s.title || ''}` };
+  const target = { draftId: state.draft.id, stepId: id, label: `步驟 ${idx}：${s.title || ''}`, fill: !s.imageId };
   await chrome.storage.local.set({ retakeTarget: target });
   state.retake = target;
   renderSteps();
